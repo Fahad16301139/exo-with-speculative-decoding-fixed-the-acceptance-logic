@@ -72,48 +72,47 @@ def get_draft_model_for_target(target_model: str, config: SpeculativeConfig) -> 
     if config.draft_model:
         return config.draft_model
     
-    # FIXED: ALWAYS use different models - never return the same model
+    # Use real smaller models for proper speculative decoding
     model_families = {
-        # Llama family - ALWAYS use smaller models from same family
+        # Llama family - Use smaller models from same family
         "llama-3.2-1b": "dummy",  # Use dummy for 1B (smallest model)
         "llama-3.2-3b": "llama-3.2-1b",  # Use 1B as draft for 3B
         "llama-3.1-8b": "llama-3.2-1b",  # Use 1B as draft for 8B
-        "llama-3.1-70b": "llama-3.2-3b", # Use 3B as draft for 70B
-        "llama-3-8b": "llama-3.2-1b",
-        "llama-3-70b": "llama-3.2-3b",
+        "llama-3.1-70b": "llama-3.1-8b",  # Use 8B as draft for 70B
+        "llama-3.1-405b": "llama-3.1-8b",  # Use 8B as draft for 405B
         
-        # Qwen family
-        "qwen-2.5-0.5b": "dummy",  # Use dummy for smallest
-        "qwen-2.5-1.5b": "qwen-2.5-0.5b",
-        "qwen-2.5-3b": "qwen-2.5-0.5b",
-        "qwen-2.5-7b": "qwen-2.5-1.5b",
-        "qwen-2.5-14b": "qwen-2.5-3b",
-        "qwen-2.5-32b": "qwen-2.5-7b",
-        "qwen-2.5-72b": "qwen-2.5-14b",
-        
-        # Mistral family
-        "mistral-7b": "dummy",  # Use dummy for single model
-        "mixtral-8x7b": "mistral-7b",
-        "mixtral-8x22b": "mistral-7b",
-        
-        # Gemma family
-        "gemma-2b": "dummy",  # Use dummy for smallest
-        "gemma-7b": "gemma-2b",
-        
-        # Default fallback - ALWAYS use dummy for unknown models
-        "dummy": "dummy"  # Special case for dummy
+        # Other families - use dummy for now to avoid similar issues
+        "mistral-7b": "dummy",
+        "mixtral-8x7b": "dummy",
+        "gemma-2b": "dummy",
+        "gemma-7b": "dummy",
+        "deepseek-coder-1.3b": "dummy",
+        "deepseek-coder-6.7b": "dummy",
+        "qwen1.5-0.5b": "dummy",
+        "qwen1.5-1.8b": "dummy",
+        "qwen1.5-4b": "dummy",
+        "qwen1.5-7b": "dummy",
+        "qwen1.5-14b": "dummy",
+        "qwen1.5-32b": "dummy",
+        "qwen1.5-72b": "dummy",
+        "qwen1.5-110b": "dummy",
+        "qwen2-0.5b": "dummy",
+        "qwen2-1.5b": "dummy",
+        "qwen2-7b": "dummy",
+        "qwen2-72b": "dummy",
+        "llava-1.5-7b": "dummy",
+        "llava-1.5-13b": "dummy",
     }
     
     # Find the best draft model
-    draft_model = model_families.get(target_model, "dummy")
+    for model_name, draft_model in model_families.items():
+        if model_name in target_model.lower():
+            print(f"[Speculative] Mapping {target_model} -> {draft_model}")
+            return draft_model
     
-    # ENSURE we never return the same model (except for dummy)
-    if draft_model == target_model and target_model != "dummy":
-        draft_model = "dummy"  # Fallback to dummy if same model
-    
-    print(f"[Speculative Config] Target: {target_model} -> Draft: {draft_model}")
-    
-    return draft_model
+    # Default fallback - always use dummy to avoid issues
+    print(f"[Speculative] No specific mapping found for {target_model}, using dummy")
+    return "dummy"
 
 def is_same_family_model(model_id: str) -> bool:
     """Check if model belongs to a family that supports same-family optimization"""

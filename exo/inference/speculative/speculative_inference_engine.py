@@ -392,6 +392,20 @@ class SpeculativeInferenceEngine(InferenceEngine):
                 print(f"[Speculative] Error sampling: {e}")
             return 0
     
+    def _logits_to_probs(self, logits: np.ndarray) -> np.ndarray:
+        """Convert logits to probabilities with numerical stability"""
+        try:
+            # Softmax with numerical stability
+            logits_max = np.max(logits)
+            exp_logits = np.exp(logits - logits_max)
+            probs = exp_logits / np.sum(exp_logits)
+            return probs
+        except Exception as e:
+            if DEBUG >= 2:
+                print(f"[Speculative] Error converting logits to probs: {e}")
+            # Return uniform distribution as fallback
+            return np.ones(len(logits)) / len(logits)
+    
     def _update_metrics(self, draft_tokens: List[int], accepted_tokens: List[int], draft_time: float, verify_time: float):
         """Update speculative decoding metrics"""
         self.metrics['total_draft_tokens'] += len(draft_tokens)

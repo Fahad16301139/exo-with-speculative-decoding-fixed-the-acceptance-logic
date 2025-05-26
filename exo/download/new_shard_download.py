@@ -179,9 +179,29 @@ def calculate_repo_progress(shard: Shard, repo_id: str, revision: str, file_prog
 
 async def get_weight_map(repo_id: str, revision: str = "main") -> Dict[str, str]:
   target_dir = (await ensure_exo_tmp())/repo_id.replace("/", "--")
-  index_file = await download_file_with_retry(repo_id, revision, "model.safetensors.index.json", target_dir)
-  async with aiofiles.open(index_file, 'r') as f: index_data = json.loads(await f.read())
-  return index_data.get("weight_map")
+  
+  # First try to get the index file for sharded models
+  try:
+    index_file = await download_file_with_retry(repo_id, revision, "model.safetensors.index.json", target_dir)
+    async with aiofiles.open(index_file, 'r') as f: 
+      index_data = json.loads(await f.read())
+    return index_data.get("weight_map")
+  except FileNotFoundError:
+    # If index file doesn't exist, assume single safetensors file
+    if DEBUG >= 1: 
+      print(f"[Download] No model.safetensors.index.json found for {repo_id}, assuming single safetensors file")
+    
+    # For single file models, create a simple weight map pointing to model.safetensors
+    try:
+      # Check if model.safetensors exists
+      await download_file_with_retry(repo_id, revision, "model.safetensors", target_dir)
+      # Return a simple weight map for single file
+      return {"model.safetensors": "model.safetensors"}
+    except FileNotFoundError:
+      # If neither index nor single file exists, return empty map
+      if DEBUG >= 1:
+        print(f"[Download] Neither model.safetensors.index.json nor model.safetensors found for {repo_id}")
+      return {}
 
 async def resolve_allow_patterns(shard: Shard, inference_engine_classname: str) -> List[str]:
   try:
