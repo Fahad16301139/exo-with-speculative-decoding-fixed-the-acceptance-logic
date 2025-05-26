@@ -281,6 +281,9 @@ async def run_model_cli(node: Node, model_name: str, prompt: str):
     def on_token(_request_id, _tokens, _is_finished):
       if _request_id == request_id:
         tokens.extend(_tokens)
+        # Update TUI display with current response as tokens are generated
+        if topology_viz:
+          topology_viz.update_prompt_output(request_id, tokenizer.decode(tokens))
         # Check if we've reached the max token limit
         if len(tokens) >= max_tokens:
           if DEBUG >= 1:
