@@ -50,6 +50,16 @@ model_cards = {
        "MLXDynamicShardInferenceEngine": "mlx-community/Llama-3.2-3B-Instruct",
        "TinygradDynamicShardInferenceEngine": "unsloth/Llama-3.2-3B-Instruct",
     },
+    "tokenizer_repo": "unsloth/Llama-3.2-3B-Instruct",
+  },
+  "llama-3.2-8b": {
+    "layers": 32,
+    "repo": {
+      "MLXDynamicShardInferenceEngine": "mlx-community/Llama-3.2-8B-Instruct-4bit",
+      "TinygradDynamicShardInferenceEngine": "mlabonne/Meta-Llama-3.1-8B-Instruct-abliterated",
+      "SpeculativeInferenceEngine": "mlabonne/Meta-Llama-3.1-8B-Instruct-abliterated",
+    },
+    "tokenizer_repo": "unsloth/Llama-3.2-3B-Instruct",
   },
   "llama-3.1-8b": {
     "layers": 32,
@@ -133,7 +143,7 @@ model_cards = {
   "llava-1.5-7b-hf": { "layers": 32, "repo": { "MLXDynamicShardInferenceEngine": "llava-hf/llava-1.5-7b-hf", }, },
   ### qwen
   "qwen-2.5-0.5b": { "layers": 28, "repo": { "MLXDynamicShardInferenceEngine": "mlx-community/Qwen2.5-0.5B-Instruct-4bit", "TinygradDynamicShardInferenceEngine": "Qwen/Qwen2.5-0.5B-Instruct", }, },
-  "qwen-2.5-1.5b": { "layers": 28, "repo": { "MLXDynamicShardInferenceEngine": "mlx-community/Qwen2.5-1.5B-Instruct-4bit", }, },
+  "qwen-2.5-1.5b": { "layers": 28, "repo": { "MLXDynamicShardInferenceEngine": "mlx-community/Qwen2.5-1.5B-Instruct-4bit", "TinygradDynamicShardInferenceEngine": "Qwen/Qwen2.5-1.5B-Instruct", "SpeculativeInferenceEngine": "Qwen/Qwen2.5-1.5B-Instruct", }, },
   "qwen-2.5-coder-1.5b": { "layers": 28, "repo": { "MLXDynamicShardInferenceEngine": "mlx-community/Qwen2.5-Coder-1.5B-Instruct-4bit", }, },
   "qwen-2.5-3b": { "layers": 36, "repo": { "MLXDynamicShardInferenceEngine": "mlx-community/Qwen2.5-3B-Instruct-4bit", }, },
   "qwen-2.5-coder-3b": { "layers": 36, "repo": { "MLXDynamicShardInferenceEngine": "mlx-community/Qwen2.5-Coder-3B-Instruct-4bit", }, },
@@ -183,6 +193,7 @@ pretty_name = {
   "llama-3.2-3b": "Llama 3.2 3B",
   "llama-3.2-3b-8bit": "Llama 3.2 3B (8-bit)",
   "llama-3.2-3b-bf16": "Llama 3.2 3B (BF16)",
+  "llama-3.2-8b": "Llama 3.2 8B",
   "llama-3.1-8b": "Llama 3.1 8B",
   "llama-3.1-70b": "Llama 3.1 70B",
   "llama-3.1-70b-bf16": "Llama 3.1 70B (BF16)",

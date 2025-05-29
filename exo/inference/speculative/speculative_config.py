@@ -4,25 +4,40 @@ from typing import Optional, Dict, Any
 @dataclass
 class SpeculativeConfig:
     """Configuration for speculative decoding"""
+    # Whether to enable speculative decoding
     enabled: bool = False
-    draft_tokens: int = 2
+    # Number of tokens to draft at once
+    draft_tokens: int = 4
+    # Name of the draft (smaller) model to use
     draft_model: Optional[str] = None
-    acceptance_threshold: float = 0.8
+    # Probability threshold for accepting draft tokens
+    acceptance_threshold: float = 0.9
+    # Maximum number of speculation rounds per inference
     max_speculation_depth: int = 4
+    # Whether to adaptively adjust draft tokens
     adaptive_speculation: bool = True
     
     # Enhanced configuration options
-    temperature: float = 1.0
-    top_k: Optional[int] = None
-    top_p: Optional[float] = None
-    min_acceptance_rate: float = 0.3  # Disable if acceptance rate drops below this
-    max_draft_batch_size: int = 8  # Maximum number of draft tokens to generate in parallel
-    use_tree_attention: bool = False  # Enable tree attention for better parallelization
+    # Sampling temperature for randomness
+    temperature: float = 0.7
+    # Top-k sampling (None means disabled)
+    top_k: Optional[int] = 50
+    # Top-p (nucleus) sampling (None means disabled)
+    top_p: Optional[float] = 0.9
+    # Disable speculative decoding if acceptance rate drops below this
+    min_acceptance_rate: float = 0.4
+    # Max number of draft tokens to generate in parallel
+    max_draft_batch_size: int = 8
+    # Enable tree attention for better parallelization
+    use_tree_attention: bool = False
     
     # Same-family model optimizations
-    use_shared_embeddings: bool = True  # Share embeddings between target and draft
-    use_layer_skipping: bool = True     # Use layer skipping for same model
-    draft_layer_ratio: float = 0.25     # Ratio of layers to use for draft model
+    # Share embeddings between target and draft models
+    use_shared_embeddings: bool = True
+    # Use layer skipping if models are from the same family
+    use_layer_skipping: bool = True
+    # Ratio of layers to use for draft model
+    draft_layer_ratio: float = 0.25
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -47,15 +62,15 @@ class SpeculativeConfig:
     def from_dict(cls, data: Dict[str, Any]) -> 'SpeculativeConfig':
         return cls(
             enabled=data.get('enabled', False),
-            draft_tokens=data.get('draft_tokens', 2),
+            draft_tokens=data.get('draft_tokens', 4),
             draft_model=data.get('draft_model'),
-            acceptance_threshold=data.get('acceptance_threshold', 0.8),
+            acceptance_threshold=data.get('acceptance_threshold', 0.9),
             max_speculation_depth=data.get('max_speculation_depth', 4),
             adaptive_speculation=data.get('adaptive_speculation', True),
-            temperature=data.get('temperature', 1.0),
+            temperature=data.get('temperature', 0.7),
             top_k=data.get('top_k'),
             top_p=data.get('top_p'),
-            min_acceptance_rate=data.get('min_acceptance_rate', 0.3),
+            min_acceptance_rate=data.get('min_acceptance_rate', 0.4),
             max_draft_batch_size=data.get('max_draft_batch_size', 8),
             use_tree_attention=data.get('use_tree_attention', False),
             use_shared_embeddings=data.get('use_shared_embeddings', True),
@@ -63,65 +78,39 @@ class SpeculativeConfig:
             draft_layer_ratio=data.get('draft_layer_ratio', 0.25)
         )
 
-def get_draft_model_for_target(target_model: str, config: SpeculativeConfig) -> str:
-    """
-    Get the appropriate draft model for a target model.
-    Prioritizes same-family models with shared vocabulary.
-    ALWAYS returns a different/smaller model for proper speculative decoding.
-    """
+def get_draft_model_for_target(target_model: str, config: SpeculativeConfig) -> Optional[str]:
+    """Get appropriate draft model for target model"""
+    
+    # If draft model explicitly set, use it
     if config.draft_model:
         return config.draft_model
     
-    # Use real smaller models for proper speculative decoding
-    model_families = {
-        # Llama family - Use smaller models from same family
-        "llama-3.2-1b": "dummy",  # Use dummy for 1B (smallest model)
-        "llama-3.2-3b": "llama-3.2-1b",  # Use 1B as draft for 3B
-        "llama-3.1-8b": "llama-3.2-1b",  # Use 1B as draft for 8B
-        "llama-3.1-70b": "llama-3.1-8b",  # Use 8B as draft for 70B
-        "llama-3.1-405b": "llama-3.1-8b",  # Use 8B as draft for 405B
-        
-        # Other families - use dummy for now to avoid similar issues
-        "mistral-7b": "dummy",
-        "mixtral-8x7b": "dummy",
-        "gemma-2b": "dummy",
-        "gemma-7b": "dummy",
-        "deepseek-coder-1.3b": "dummy",
-        "deepseek-coder-6.7b": "dummy",
-        "qwen1.5-0.5b": "dummy",
-        "qwen1.5-1.8b": "dummy",
-        "qwen1.5-4b": "dummy",
-        "qwen1.5-7b": "dummy",
-        "qwen1.5-14b": "dummy",
-        "qwen1.5-32b": "dummy",
-        "qwen1.5-72b": "dummy",
-        "qwen1.5-110b": "dummy",
-        "qwen2-0.5b": "dummy",
-        "qwen2-1.5b": "dummy",
-        "qwen2-7b": "dummy",
-        "qwen2-72b": "dummy",
-        "llava-1.5-7b": "dummy",
-        "llava-1.5-13b": "dummy",
+    # 🔧 FIXED: Use completely different models to avoid JIT conflicts
+    draft_mapping = {
+        "llama-3.1-8b": "llama-3.2-1b",  # Much smaller, different architecture
+        "llama-3.2-8b": "llama-3.2-1b", 
+        "llama-3.2-3b": "llama-3.2-1b",
+        "llama-3.1-70b": "llama-3.2-3b",
+        "llama-3.2-70b": "llama-3.2-3b",
+        # Add more mappings as needed
     }
     
-    # Find the best draft model
-    for model_name, draft_model in model_families.items():
-        if model_name in target_model.lower():
-            print(f"[Speculative] Mapping {target_model} -> {draft_model}")
-            return draft_model
+    draft_model = draft_mapping.get(target_model)
     
-    # Default fallback - always use dummy to avoid issues
-    print(f"[Speculative] No specific mapping found for {target_model}, using dummy")
-    return "dummy"
+    if not draft_model:
+        # Fallback: use smallest available model
+        return "llama-3.2-1b"
+    
+    return draft_model
 
 def is_same_family_model(model_id: str) -> bool:
     """Check if model belongs to a family that supports same-family optimization"""
-    families = ["llama", "qwen", "mistral", "gemma", "phi"]
+    families = ["llama", "qwen", "mistral", "gemma", "phi"]  # Supported families
     return any(family in model_id.lower() for family in families)
 
 def has_shared_vocabulary(model_id: str) -> bool:
     """Check if model family typically shares vocabulary across sizes"""
-    shared_vocab_families = ["llama", "qwen", "mistral", "gemma"]
+    shared_vocab_families = ["llama", "qwen", "mistral", "gemma"]  # Families with shared vocab
     return any(family in model_id.lower() for family in shared_vocab_families)
 
 def get_optimal_layer_ratio(model_id: str) -> float:

@@ -124,6 +124,14 @@ class Node:
     request_id: Optional[str] = None,
     inference_state: Optional[dict] = None,
   ):
+    # 🔧 DEBUG: Show which inference engine is being used
+    if DEBUG >= 1 and request_id not in getattr(self, '_engine_debug_shown', set()):
+      if not hasattr(self, '_engine_debug_shown'):
+        self._engine_debug_shown = set()
+      print(f"[NODE] 🔧 INFERENCE ENGINE: {self.inference_engine.__class__.__name__}")
+      print(f"[NODE] 🔧 ENGINE TYPE: {type(self.inference_engine)}")
+      self._engine_debug_shown.add(request_id)
+    
     if shard.model_id != 'stable-diffusion-2-1-base':
       if request_id not in self.buffered_token_output:
         self.buffered_token_output[request_id] = ([], False)
@@ -131,10 +139,57 @@ class Node:
       if shard.is_last_layer() and not is_finished:
         token = await self.inference_engine.sample(result, temp=self.default_sample_temperature)
         await self.inference_engine.ensure_shard(shard)
+        
+        # 🔧 DEBUG: Add detailed token processing debugging
+        if DEBUG >= 1:
+          print(f"[NODE] 🔍 TOKEN DEBUG - Request: {request_id}")
+          print(f"[NODE] 🎲 Sampled token: {token.item()}")
+          print(f"[NODE] 📊 Current buffered tokens: {self.buffered_token_output[request_id][0]}")
+          
+          # Decode the single token to see what it represents
+          if hasattr(self.inference_engine, 'tokenizer') and self.inference_engine.tokenizer:
+            try:
+              decoded_token = self.inference_engine.tokenizer.decode([token.item()])
+              print(f"[NODE] 🔤 Token {token.item()} decodes to: '{decoded_token}'")
+              
+              # Show current accumulated text
+              if len(self.buffered_token_output[request_id][0]) > 0:
+                current_text = self.inference_engine.tokenizer.decode(self.buffered_token_output[request_id][0])
+                print(f"[NODE] 📝 Current accumulated text: '{current_text}'")
+            except Exception as e:
+              print(f"[NODE] ⚠️  Could not decode token: {e}")
+        
         self.buffered_token_output[request_id][0].append(token.item())
         is_finished = token.item() == self.inference_engine.tokenizer.eos_token_id or is_finished or len(self.buffered_token_output[request_id][0]) >= self.max_generate_tokens
+        
+        # 🔧 DEBUG: Show final state after appending
+        if DEBUG >= 1:
+          print(f"[NODE] ✅ After append - buffered tokens: {self.buffered_token_output[request_id][0]}")
+          if hasattr(self.inference_engine, 'tokenizer') and self.inference_engine.tokenizer:
+            try:
+              final_text = self.inference_engine.tokenizer.decode(self.buffered_token_output[request_id][0])
+              print(f"[NODE] 📄 Final accumulated text: '{final_text}'")
+            except:
+              pass
+          print(f"[NODE] 🏁 Is finished: {is_finished}")
+        
         if DEBUG >= 2: print(f"[{request_id}] result size: {result.size}, is finished: {is_finished}, buffered tokens: {len(self.buffered_token_output[request_id][0])}")
-        forward = token.reshape(1, -1)
+        
+        # 🔧 CRITICAL FIX: Forward the LAST FEW TOKENS (not just one) to maintain context
+        # The model needs sufficient context to understand the conversation state
+        max_context_tokens = 8  # Keep last 8 tokens for context
+        recent_tokens = self.buffered_token_output[request_id][0][-max_context_tokens:]
+        forward = np.array(recent_tokens, dtype=np.int64).reshape(1, -1)
+        
+        if DEBUG >= 1:
+          print(f"[NODE] 🔄 Forwarding context: {recent_tokens}")
+          if hasattr(self.inference_engine, 'tokenizer') and self.inference_engine.tokenizer:
+            try:
+              context_text = self.inference_engine.tokenizer.decode(recent_tokens)
+              print(f"[NODE] 📝 Context being forwarded: '{context_text}'")
+            except:
+              pass
+        
         intermediate_result = [self.buffered_token_output[request_id][0][-1]]
       else:
         forward = result
