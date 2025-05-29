@@ -87,7 +87,34 @@ class TinygradDynamicShardInferenceEngine(InferenceEngine):
 
   async def encode(self, shard: Shard, prompt: str) -> np.ndarray:
     await self.ensure_shard(shard)
-    tokens = await asyncio.get_running_loop().run_in_executor(self.executor, self.tokenizer.encode, prompt)
+    
+    # 🔧 CRITICAL FIX: Don't add BOS tokens since chat template already includes them
+    tokens = await asyncio.get_running_loop().run_in_executor(
+        self.executor, 
+        lambda: self.tokenizer.encode(prompt, add_special_tokens=False)
+    )
+    
+    # 🔧 DEBUG: Show encoding details
+    from exo import DEBUG
+    if DEBUG >= 1:
+      print(f"[INFERENCE] 🔧 ENCODE DEBUG:")
+      print(f"[INFERENCE] 📝 Input prompt length: {len(prompt)} chars")
+      print(f"[INFERENCE] 📝 Input prompt: '{prompt[:100]}{'...' if len(prompt) > 100 else ''}'")
+      print(f"[INFERENCE] 🎯 Encoded to {len(tokens)} tokens: {tokens[:10]}...")
+      
+      # Check for duplicates of common special tokens
+      if hasattr(self.tokenizer, 'bos_token_id') and self.tokenizer.bos_token_id is not None:
+        bos_count = tokens.count(self.tokenizer.bos_token_id)
+        print(f"[INFERENCE] 🔍 BOS token ({self.tokenizer.bos_token_id}) appears {bos_count} times")
+      
+      # Show first few decoded tokens
+      try:
+        for i, token in enumerate(tokens[:5]):
+          decoded = self.tokenizer.decode([token])
+          print(f"[INFERENCE] 🎯 Token {i}: {token} -> '{decoded}'")
+      except Exception as e:
+        print(f"[INFERENCE] ⚠️  Could not decode individual tokens: {e}")
+    
     return await asyncio.get_running_loop().run_in_executor(self.executor, np.array, tokens)
   
   async def decode(self, shard: Shard, tokens) -> str:

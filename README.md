@@ -298,3 +298,73 @@ exo supports the following inference engines:
 
 - ✅ [GRPC](exo/networking/grpc)
 - 🚧 NCCL
+
+# Exo with Speculative Decoding
+
+This repository contains an implementation of speculative decoding for large language models, built on top of the Exo framework. The implementation includes optimizations for the TinyGrad backend and supports efficient inference with draft models.
+
+## Features
+
+- Speculative decoding implementation with configurable draft models
+- Integration with TinyGrad for efficient computation
+- Support for Llama 3.2 models (3B and 1B variants)
+- Optimized inference engine with proper probability handling
+- Real-time token verification and acceptance/rejection mechanisms
+
+## Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/exo-speculative-decoding.git
+cd exo-speculative-decoding
+
+# Create and activate virtual environment
+python -m venv exo-speculative-decoding
+source exo-speculative-decoding/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+## Usage
+
+```python
+from exo.inference.speculative import SpeculativeInferenceEngine
+
+# Initialize the inference engine
+engine = SpeculativeInferenceEngine(
+    target_model="llama-3.2-3b",
+    draft_model="llama-3.2-1b",
+    gamma=2  # Number of speculative tokens to generate
+)
+
+# Generate text
+response = engine.generate("Your prompt here")
+```
+
+## Architecture
+
+The system uses a two-model approach:
+- Target Model: Larger model (Llama 3.2 3B) for accurate predictions
+- Draft Model: Smaller model (Llama 3.2 1B) for fast speculative token generation
+
+The speculative decoding process:
+1. Draft model generates γ tokens ahead
+2. Target model verifies these tokens
+3. Accepted tokens are kept, rejected tokens trigger a fallback to target model
+
+## Performance
+
+The implementation includes optimizations for:
+- Efficient memory usage
+- Proper probability handling
+- Real token verification
+- Optimized kernel scheduling
+
+## License
+
+[Your chosen license]
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.

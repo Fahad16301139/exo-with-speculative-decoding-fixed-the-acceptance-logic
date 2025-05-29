@@ -77,6 +77,9 @@ def _get_base_engine(inference_engine_name: str, shard_downloader: ShardDownload
 
 
 def get_inference_engine(inference_engine_name: str, shard_downloader: ShardDownloader, speculative_config: Optional = None) -> InferenceEngine:
+  if DEBUG >= 1:
+    print(f"[DEBUG] get_inference_engine called with engine={inference_engine_name}, speculative_config={speculative_config}")
+  
   if inference_engine_name == "mlx":
     from exo.inference.mlx.sharded_inference_engine import MLXDynamicShardInferenceEngine
     base_engine = MLXDynamicShardInferenceEngine(shard_downloader)
@@ -89,14 +92,33 @@ def get_inference_engine(inference_engine_name: str, shard_downloader: ShardDown
   else:
     raise ValueError(f"Unknown inference engine: {inference_engine_name}")
   
+  if DEBUG >= 1:
+    print(f"[DEBUG] Base engine created: {base_engine.__class__.__name__}")
+  
   # Wrap with speculative decoding if requested
   if speculative_config and speculative_config.enabled:
-    from exo.inference.speculative.speculative_inference_engine import SpeculativeInferenceEngine
-    return SpeculativeInferenceEngine(
-      target_engine=base_engine,
-      draft_engine=None,  # Will be created dynamically
-      config=speculative_config,
-      shard_downloader=shard_downloader
-    )
+    if DEBUG >= 1:
+      print(f"[DEBUG] Creating SpeculativeInferenceEngine wrapper")
+    try:
+      from exo.inference.speculative.speculative_inference_engine import SpeculativeInferenceEngine
+      speculative_engine = SpeculativeInferenceEngine(
+        target_engine=base_engine,
+        draft_engine=None,  # Will be created dynamically
+        config=speculative_config,
+        shard_downloader=shard_downloader
+      )
+      if DEBUG >= 1:
+        print(f"[DEBUG] SpeculativeInferenceEngine created successfully: {speculative_engine.__class__.__name__}")
+      return speculative_engine
+    except Exception as e:
+      if DEBUG >= 1:
+        print(f"[DEBUG] Failed to create SpeculativeInferenceEngine: {e}")
+        import traceback
+        traceback.print_exc()
+      # Fall back to base engine if speculative creation fails
+      return base_engine
+  else:
+    if DEBUG >= 1:
+      print(f"[DEBUG] Speculative config not enabled, returning base engine")
   
   return base_engine

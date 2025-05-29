@@ -203,3 +203,57 @@ cython_debug/
 .aider*
 
 exo/tinychat/images/*.png
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.env
+.venv
+exo-speculative-decoding/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Model files and caches
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+.cache/
+downloads/
+
+# OS
+.DS_Store
+Thumbs.db
