@@ -1,0 +1,32 @@
+{
+  "peers": {
+      "device1": {
+          "address": "10.88.58.79",
+          "port": 52417,
+          "device_capabilities": {
+              "model": "Unknown Model",
+              "chip": "Unknown Chip",
+              "memory": 0,
+              "flops": {
+                  "fp32": 0.0,
+                  "fp16": 0.0,
+                  "int8": 0.0
+              }
+          }
+      },
+      "device2": {
+          "address": "10.100.192.218",
+          "port": 52417,
+          "device_capabilities": {
+              "model": "Unknown Model",
+              "chip": "Unknown Chip",
+              "memory": 0,
+              "flops": {
+                  "fp32": 0.0,
+                  "fp16": 0.0,
+                  "int8": 0.0
+              }
+          }
+      }
+  }
+} 

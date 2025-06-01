@@ -7,5 +7,4 @@ uvloop>=0.17.0
 grpcio>=1.54.0
 grpcio-tools>=1.54.0
 protobuf>=4.23.0
-tinygrad>=0.8.0
-exo-core>=0.1.0 
+tinygrad>=0.8.0 
