@@ -137,60 +137,56 @@ class Node:
         self.buffered_token_output[request_id] = ([], False)
       is_finished = len(self.buffered_token_output[request_id][0]) >= self.max_generate_tokens
       if shard.is_last_layer() and not is_finished:
+        # Simple sampling without complex filtering
         token = await self.inference_engine.sample(result, temp=self.default_sample_temperature)
-        await self.inference_engine.ensure_shard(shard)
+        token_item = token.item()
         
-        # 🔧 DEBUG: Add detailed token processing debugging
         if DEBUG >= 1:
-          print(f"[NODE] 🔍 TOKEN DEBUG - Request: {request_id}")
-          print(f"[NODE] 🎲 Sampled token: {token.item()}")
-          print(f"[NODE] 📊 Current buffered tokens: {self.buffered_token_output[request_id][0]}")
+          print(f"[NODE] 🎲 Sampled token: {token_item}")
           
-          # Decode the single token to see what it represents
-          if hasattr(self.inference_engine, 'tokenizer') and self.inference_engine.tokenizer:
-            try:
-              decoded_token = self.inference_engine.tokenizer.decode([token.item()])
-              print(f"[NODE] 🔤 Token {token.item()} decodes to: '{decoded_token}'")
-              
-              # Show current accumulated text
-              if len(self.buffered_token_output[request_id][0]) > 0:
-                current_text = self.inference_engine.tokenizer.decode(self.buffered_token_output[request_id][0])
-                print(f"[NODE] 📝 Current accumulated text: '{current_text}'")
-            except Exception as e:
-              print(f"[NODE] ⚠️  Could not decode token: {e}")
-        
-        self.buffered_token_output[request_id][0].append(token.item())
-        is_finished = token.item() == self.inference_engine.tokenizer.eos_token_id or is_finished or len(self.buffered_token_output[request_id][0]) >= self.max_generate_tokens
-        
-        # 🔧 DEBUG: Show final state after appending
-        if DEBUG >= 1:
-          print(f"[NODE] ✅ After append - buffered tokens: {self.buffered_token_output[request_id][0]}")
-          if hasattr(self.inference_engine, 'tokenizer') and self.inference_engine.tokenizer:
-            try:
-              final_text = self.inference_engine.tokenizer.decode(self.buffered_token_output[request_id][0])
-              print(f"[NODE] 📄 Final accumulated text: '{final_text}'")
-            except:
-              pass
-          print(f"[NODE] 🏁 Is finished: {is_finished}")
+        self.buffered_token_output[request_id][0].append(token_item)
+        is_finished = token_item == self.inference_engine.tokenizer.eos_token_id or is_finished or len(self.buffered_token_output[request_id][0]) >= self.max_generate_tokens
         
         if DEBUG >= 2: print(f"[{request_id}] result size: {result.size}, is finished: {is_finished}, buffered tokens: {len(self.buffered_token_output[request_id][0])}")
         
-        # 🔧 CRITICAL FIX: Forward the LAST FEW TOKENS (not just one) to maintain context
-        # The model needs sufficient context to understand the conversation state
-        max_context_tokens = 8  # Keep last 8 tokens for context
-        recent_tokens = self.buffered_token_output[request_id][0][-max_context_tokens:]
-        forward = np.array(recent_tokens, dtype=np.int64).reshape(1, -1)
-        
-        if DEBUG >= 1:
-          print(f"[NODE] 🔄 Forwarding context: {recent_tokens}")
-          if hasattr(self.inference_engine, 'tokenizer') and self.inference_engine.tokenizer:
-            try:
-              context_text = self.inference_engine.tokenizer.decode(recent_tokens)
-              print(f"[NODE] 📝 Context being forwarded: '{context_text}'")
-            except:
-              pass
-        
-        intermediate_result = [self.buffered_token_output[request_id][0][-1]]
+        # Simple forwarding for speculative decoding
+        if hasattr(self.inference_engine, '__class__') and 'Speculative' in self.inference_engine.__class__.__name__:
+          # For speculative decoding, forward the current token sequence
+          current_tokens = self.buffered_token_output[request_id][0]
+          if len(current_tokens) > 0:
+            # Try to get stored conversation context from speculative engine
+            conversation_context = None
+            if (hasattr(self.inference_engine, '_conversation_context') and 
+                self.inference_engine._conversation_context is not None and
+                hasattr(self.inference_engine, '_conversation_request_id') and
+                self.inference_engine._conversation_request_id == request_id):
+              try:
+                conversation_context = self.inference_engine._conversation_context.flatten().tolist()
+                if DEBUG >= 1:
+                  print(f"[NODE] 🔧 Found conversation context: {len(conversation_context)} tokens")
+              except:
+                conversation_context = None
+            
+            if conversation_context is not None:
+              # Include conversation context + generated tokens
+              full_sequence = conversation_context + current_tokens
+              # Forward reasonable context window (last 64 tokens to avoid memory issues)
+              context_tokens = full_sequence[-64:] if len(full_sequence) > 64 else full_sequence
+              forward = np.array(context_tokens, dtype=np.int64).reshape(1, -1)
+              if DEBUG >= 1:
+                print(f"[NODE] 🔧 FORWARDING {len(context_tokens)} tokens (context + generated)")
+            else:
+              # Fallback: just generated tokens
+              context_tokens = current_tokens[-32:] if len(current_tokens) > 32 else current_tokens
+              forward = np.array(context_tokens, dtype=np.int64).reshape(1, -1)
+              if DEBUG >= 1:
+                print(f"[NODE] ⚠️ No context found, forwarding {len(context_tokens)} generated tokens only")
+          else:
+            forward = result
+        else:
+          # For normal engines, forward the logits as before
+          forward = result
+        intermediate_result = [token_item]
       else:
         forward = result
     else:

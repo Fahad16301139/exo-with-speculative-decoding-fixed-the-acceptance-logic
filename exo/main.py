@@ -258,21 +258,47 @@ async def periodic_speculative_metrics():
         print(f"Error in periodic speculative metrics: {e}")
 
 async def run_model_cli(node: Node, model_name: str, prompt: str):
+  if DEBUG >= 1:
+    print(f"[CLI] 🔍 Starting run_model_cli with model={model_name}, prompt='{prompt[:50]}...'")
+  
   inference_class = node.inference_engine.__class__.__name__
+  if DEBUG >= 1:
+    print(f"[CLI] 🔍 Detected inference class: {inference_class}")
+  
   shard = build_base_shard(model_name, inference_class)
+  if DEBUG >= 1:
+    print(f"[CLI] 🔍 Built shard: {shard}")
+  
   if not shard:
     print(f"Error: Unsupported model '{model_name}' for inference engine {inference_class}")
     return
+    
+  if DEBUG >= 1:
+    print(f"[CLI] 🔍 Getting tokenizer for model_id={shard.model_id}, inference_class={inference_class}")
+  
   tokenizer = await resolve_tokenizer(get_tokenizer_repo(shard.model_id, inference_class))
+  if DEBUG >= 1:
+    print(f"[CLI] 🔍 Got tokenizer: {type(tokenizer)}")
+  
   request_id = str(uuid.uuid4())
   callback_id = f"cli-wait-response-{request_id}"
   callback = node.on_token.register(callback_id)
   if topology_viz:
     topology_viz.update_prompt(request_id, prompt)
+  
+  if DEBUG >= 1:
+    print(f"[CLI] 🔍 Applying chat template to prompt: '{prompt}'")
+  
   prompt = tokenizer.apply_chat_template([{"role": "user", "content": prompt}], tokenize=False, add_generation_prompt=True)
+  
+  if DEBUG >= 1:
+    print(f"[CLI] 🔍 Formatted prompt: '{prompt}'")
 
   try:
     print(f"Processing prompt: {prompt}")
+    if DEBUG >= 1:
+      print(f"[CLI] 🔍 Calling node.process_prompt...")
+    
     await node.process_prompt(shard, prompt, request_id=request_id)
 
     tokens = []

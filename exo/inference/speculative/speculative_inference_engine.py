@@ -253,7 +253,7 @@ class SpeculativeInferenceEngine(InferenceEngine):
                     print(f"[Speculative] ❌ Insufficient target probabilities - fallback")
                 return await self.target_engine.infer_tensor(request_id, shard, input_data, inference_state)
             
-            # Verify each draft token
+            # Verify each draft token with PROPER SPECULATIVE DECODING ALGORITHM
             accepted_tokens = []
             for i, draft_token in enumerate(draft_tokens):
                 target_probs = target_probs_list[i]
@@ -264,24 +264,34 @@ class SpeculativeInferenceEngine(InferenceEngine):
                     break
                 
                 target_prob = target_probs[draft_token]
-                draft_prob = draft_probs[i]  # 🔧 Use REAL draft probability
+                draft_prob = draft_probs[i]
                 
-                # Mathematical acceptance rule
-                acceptance_ratio = min(1.0, target_prob / max(draft_prob, 1e-10))
+                # 🔧 FIXED: PROPER SPECULATIVE DECODING ALGORITHM
+                # Accept with probability min(1, p_target / p_draft)
+                
+                if draft_prob > 0:
+                    # Standard speculative decoding acceptance probability
+                    acceptance_prob = min(1.0, target_prob / draft_prob)
+                else:
+                    # Handle edge case of zero draft probability
+                    acceptance_prob = 1.0 if target_prob > 0 else 0.0
+                
+                # Generate random number for accept/reject decision
                 random_val = np.random.uniform(0, 1)
                 
                 if DEBUG >= 1:
                     print(f"[Speculative] 🔎 Token {i+1}: {draft_token}")
                     print(f"[Speculative]    📊 Draft prob: {draft_prob:.6f}, Target prob: {target_prob:.6f}")
-                    print(f"[Speculative]    🎲 Acceptance ratio: {acceptance_ratio:.4f}, Random: {random_val:.4f}")
+                    print(f"[Speculative]    📊 Ratio: {target_prob/draft_prob if draft_prob > 0 else 'inf':.4f}")
+                    print(f"[Speculative]    🎲 Acceptance prob: {acceptance_prob:.4f}, Random: {random_val:.4f}")
                 
-                if random_val <= acceptance_ratio:
+                if random_val <= acceptance_prob:
                     accepted_tokens.append(draft_token)
                     if DEBUG >= 1:
                         print(f"[Speculative] ✅ ACCEPTED token {i+1}: {draft_token}")
                 else:
                     if DEBUG >= 1:
-                        print(f"[Speculative] ❌ REJECTED token {i+1}: {draft_token} (target disagrees with draft)")
+                        print(f"[Speculative] ❌ REJECTED token {i+1}: {draft_token} (failed speculative test)")
                     break
             
             if DEBUG >= 1:
@@ -607,13 +617,15 @@ class SpeculativeInferenceEngine(InferenceEngine):
                 return []
             
             # Extract logits for each position we need
-            for i in range(n_tokens + 1):  # +1 for the next token after draft sequence
-                pos = original_seq_len + i - 1  # Position in the sequence
+            for i in range(n_tokens):  # Only need n_tokens, not +1
+                pos = original_seq_len + i  # FIXED: Remove the -1 offset that was causing wrong position
                 
                 if pos >= 0 and pos < logits_sequence.shape[0]:
                     logits = logits_sequence[pos]
                     probs = self._logits_to_probs(logits)
                     probs_list.append(probs)
+                    if DEBUG >= 2:
+                        print(f"[Speculative] 🔍 Position {pos}: extracted probs for token at original_seq_len({original_seq_len}) + {i}")
                 else:
                     if DEBUG >= 1:
                         print(f"[Speculative] Position {pos} out of range for sequence length {logits_sequence.shape[0]}")
